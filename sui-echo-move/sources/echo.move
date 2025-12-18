@@ -7,9 +7,25 @@ module sui_echo::echo {
     use sui::sui::SUI;
     use sui::balance::{Self, Balance};
     use sui::table::{Self, Table};
+    use sui::event;
 
     // Errors
     const ENotCourseRep: u64 = 0;
+    const ENotVerified: u64 = 1;
+    const EAlreadyVerified: u64 = 2;
+    const EInsufficientBalance: u64 = 3;
+
+    // Events
+    struct HandoutMinted has copy, drop {
+        id: object::ID,
+        uploader: address,
+        blob_id: String,
+    }
+
+    struct HandoutVerified has copy, drop {
+        id: object::ID,
+        verified_by: address,
+    }
 
     // Structs
     struct Handout has key, store {
@@ -43,14 +59,61 @@ module sui_echo::echo {
 
     // --- Marketplace / Scan Logic ---
     public entry fun mint_handout(blob_id: vector<u8>, description: vector<u8>, ctx: &mut TxContext) {
+        let handout_uid = object::new(ctx);
+        let id = object::uid_to_inner(&handout_uid);
+        let blob_id_str = string::utf8(blob_id);
+        
         let handout = Handout {
-            id: object::new(ctx),
-            blob_id: string::utf8(blob_id),
+            id: handout_uid,
+            blob_id: blob_id_str,
             description: string::utf8(description),
             uploader: tx_context::sender(ctx),
             verified: false,
         };
+        
+        event::emit(HandoutMinted {
+            id,
+            uploader: tx_context::sender(ctx),
+            blob_id: blob_id_str,
+        });
+
         transfer::transfer(handout, tx_context::sender(ctx));
+    }
+
+    // Verification by TEE or Authorized Admin
+    public entry fun verify_handout(handout: &mut Handout, ctx: &mut TxContext) {
+        // In a real TEE flow, we would check the attestation here.
+        // For MVP, we allow the caller to verify if they have the proper credentials (mocked for demo).
+        assert!(!handout.verified, EAlreadyVerified);
+        handout.verified = true;
+
+        event::emit(HandoutVerified {
+            id: object::uid_to_inner(&handout.id),
+            verified_by: tx_context::sender(ctx),
+        });
+    }
+
+    // Claim rewards from a course pool
+    public entry fun claim_reward(
+        ajo: &mut AlumniAjo,
+        handout: &Handout,
+        course_code: vector<u8>,
+        ctx: &mut TxContext
+    ) {
+        assert!(handout.verified, ENotVerified);
+        let code_str = string::utf8(course_code);
+        
+        assert!(table::contains(&ajo.pools, code_str), EInsufficientBalance);
+        let pool = table::borrow_mut(&mut ajo.pools, code_str);
+        
+        // Reward amount (example: 0.1 SUI)
+        let reward_amount = 100000000; // 0.1 SUI in MIST
+        assert!(balance::value(pool) >= reward_amount, EInsufficientBalance);
+        
+        let reward_balance = balance::split(pool, reward_amount);
+        let reward_coin = coin::from_balance(reward_balance, ctx);
+        
+        transfer::public_transfer(reward_coin, handout.uploader);
     }
 
     // --- Features: Course Rep Broadcast ---
