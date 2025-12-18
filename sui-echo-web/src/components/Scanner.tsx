@@ -1,6 +1,5 @@
 "use client";
 import React, { useRef, useState, useCallback, useEffect } from "react";
-// import Tesseract from "tesseract.js";
 import { Camera, Zap, FileText } from "lucide-react";
 
 export default function Scanner({ onScan }: { onScan: (text: string) => void }) {
@@ -37,7 +36,7 @@ export default function Scanner({ onScan }: { onScan: (text: string) => void }) 
         };
     }, []);
 
-    const capture = useCallback(() => {
+    const capture = useCallback(async () => {
         if (videoRef.current && canvasRef.current) {
             const video = videoRef.current;
             const canvas = canvasRef.current;
@@ -51,29 +50,29 @@ export default function Scanner({ onScan }: { onScan: (text: string) => void }) 
                 setScanning(true);
                 setProgress(0);
 
-                /*
-                Tesseract.recognize(
-                    imageSrc,
-                    'eng',
-                    {
-                        logger: m => {
-                            if (m.status === 'recognizing text') {
-                                setProgress(m.progress);
+                try {
+                    // Dynamically import Tesseract to avoid build-time issues with worker blobs
+                    const Tesseract = (await import("tesseract.js")).default;
+
+                    const { data: { text } } = await Tesseract.recognize(
+                        imageSrc,
+                        'eng',
+                        {
+                            logger: m => {
+                                if (m.status === 'recognizing text') {
+                                    setProgress(m.progress);
+                                }
                             }
                         }
-                    }
-                ).then(({ data: { text } }) => {
+                    );
+
                     setScanning(false);
                     onScan(text);
-                }).catch(err => {
-                    console.error(err);
+                } catch (err) {
+                    console.error("OCR Error:", err);
                     setScanning(false);
-                });
-                */
-                setTimeout(() => {
-                    setScanning(false);
-                    onScan("Mock Scanned Text to debug build.");
-                }, 1000);
+                    onScan("Error recognizing text. Please try again.");
+                }
             }
         }
     }, [onScan]);
@@ -111,7 +110,7 @@ export default function Scanner({ onScan }: { onScan: (text: string) => void }) 
 
             {/* Controls */}
             <div className="absolute bottom-8 left-0 w-full flex justify-center items-center gap-8 z-20">
-                <button className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition-colors">
+                <button className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition-colors text-center">
                     <div className="w-10 h-10 rounded-full bg-gray-900/50 backdrop-blur border border-white/10 flex items-center justify-center">
                         <Zap size={16} />
                     </div>
@@ -126,7 +125,7 @@ export default function Scanner({ onScan }: { onScan: (text: string) => void }) 
                     <Camera size={32} strokeWidth={2} className="text-white" />
                 </button>
 
-                <button className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition-colors">
+                <button className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition-colors text-center">
                     <div className="w-10 h-10 rounded-full bg-gray-900/50 backdrop-blur border border-white/10 flex items-center justify-center">
                         <FileText size={16} />
                     </div>
