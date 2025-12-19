@@ -241,9 +241,16 @@ export default function VerificationPage() {
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <span className="text-xs font-mono text-gray-400 bg-white/5 px-2 py-1 rounded-lg border border-white/5">
+                                                    <button
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(h.blobId);
+                                                            alert("Blob ID copied!");
+                                                        }}
+                                                        className="text-xs font-mono text-gray-400 bg-white/5 px-2 py-1 rounded-lg border border-white/5 hover:bg-blue-500/20 hover:text-blue-400 transition-all cursor-pointer"
+                                                        title="Click to copy full Blob ID"
+                                                    >
                                                         {h.blobId ? h.blobId.slice(0, 12) + "..." : "N/A"}
-                                                    </span>
+                                                    </button>
                                                 </td>
                                                 <td className="px-8 py-6">
                                                     <div className="flex items-center gap-2">
@@ -255,13 +262,24 @@ export default function VerificationPage() {
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <button
-                                                        onClick={() => openOnExplorer(h.objectId)}
-                                                        className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-blue-600 hover:border-blue-500 hover:text-white transition-all text-gray-400"
-                                                        title="View on Explorer"
-                                                    >
-                                                        <ExternalLink size={18} />
-                                                    </button>
+                                                    <div className="flex items-center gap-2">
+                                                        {h.blobId && (
+                                                            <a
+                                                                href={`/reader?blobId=${h.blobId}`}
+                                                                className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-green-600 hover:border-green-500 hover:text-white transition-all text-gray-400"
+                                                                title="Open in Reader"
+                                                            >
+                                                                <FileText size={18} />
+                                                            </a>
+                                                        )}
+                                                        <button
+                                                            onClick={() => openOnExplorer(h.objectId)}
+                                                            className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-blue-600 hover:border-blue-500 hover:text-white transition-all text-gray-400"
+                                                            title="View on Sui Explorer"
+                                                        >
+                                                            <ExternalLink size={18} />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}

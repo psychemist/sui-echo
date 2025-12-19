@@ -90,7 +90,7 @@ export default function Sidebar() {
     const repNavItems = [
         { name: "Dashboard", href: "/dashboard", icon: Activity },
         { name: "Broadcasts", href: "/dashboard/broadcasts", icon: Radio },
-        { name: "Verification", href: "/dashboard/verification", icon: ShieldCheck },
+        { name: "Handouts", href: "/dashboard/handouts", icon: ShieldCheck },
         { name: "Admin Panel", href: "/dashboard/admin", icon: ShieldCheck },
     ];
 
@@ -98,7 +98,7 @@ export default function Sidebar() {
     const studentNavItems = [
         { name: "Dashboard", href: "/dashboard", icon: Activity },
         { name: "Scan Notes", href: "/scan", icon: BookOpen },
-        { name: "My Handouts", href: "/dashboard/verification", icon: FileText },
+        { name: "My Handouts", href: "/dashboard/handouts", icon: FileText },
     ];
 
     const navItems = userRole === 'rep' ? repNavItems : studentNavItems;
