@@ -17,7 +17,7 @@ export const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID |
 export const PACKAGE_ID = process.env.NEXT_PUBLIC_PACKAGE_ID || '';
 
 // TEE Worker URL
-export const TEE_WORKER_URL = process.env.NEXT_PUBLIC_TEE_WORKER_URL || 'http://localhost:3001';
+export const TEE_WORKER_URL = process.env.NEXT_PUBLIC_TEE_WORKER_URL || '';
 
 // ZK Prover Service URL
 export const ZK_PROVER_URL = process.env.NEXT_PUBLIC_ZK_PROVER_URL || 'https://prover-dev.mystenlabs.com/v1';

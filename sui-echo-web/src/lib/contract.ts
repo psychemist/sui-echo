@@ -11,6 +11,7 @@ export const PACKAGE_ID = process.env.NEXT_PUBLIC_PACKAGE_ID || '';
 // Shared Objects - created during contract init
 export const ALUMNI_AJO_ID = process.env.NEXT_PUBLIC_ALUMNI_AJO_ID || '';
 export const COURSE_REP_REGISTRY_ID = process.env.NEXT_PUBLIC_COURSE_REP_REGISTRY_ID || '';
+export const TEE_CONFIG_ID = process.env.NEXT_PUBLIC_TEE_CONFIG_ID || '';
 
 // Admin Cap - owned by deployer (you)
 export const ADMIN_CAP_ID = process.env.NEXT_PUBLIC_ADMIN_CAP_ID || '';
@@ -24,6 +25,8 @@ export const TARGETS = {
     verify_handout: `${PACKAGE_ID}::${MODULE_NAME}::verify_handout`,
     verify_handout_tee: `${PACKAGE_ID}::${MODULE_NAME}::verify_handout_tee`,
     verify_handout_admin: `${PACKAGE_ID}::${MODULE_NAME}::verify_handout_admin`,
+    verify_with_attestation: `${PACKAGE_ID}::${MODULE_NAME}::verify_with_attestation`,
+    set_tee_pubkey: `${PACKAGE_ID}::${MODULE_NAME}::set_tee_pubkey`,
     claim_reward: `${PACKAGE_ID}::${MODULE_NAME}::claim_reward`,
     broadcast: `${PACKAGE_ID}::${MODULE_NAME}::broadcast`,
     broadcast_verified: `${PACKAGE_ID}::${MODULE_NAME}::broadcast_verified`,
@@ -42,6 +45,7 @@ export const TYPES = {
     CourseRepCap: `${PACKAGE_ID}::${MODULE_NAME}::CourseRepCap`,
     AdminCap: `${PACKAGE_ID}::${MODULE_NAME}::AdminCap`,
     TeeVerifierCap: `${PACKAGE_ID}::${MODULE_NAME}::TeeVerifierCap`,
+    TeeConfig: `${PACKAGE_ID}::${MODULE_NAME}::TeeConfig`,
 };
 
 // Helper to check if contract is configured

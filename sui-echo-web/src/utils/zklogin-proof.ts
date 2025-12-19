@@ -343,7 +343,7 @@ export async function completeZkLoginCallback(jwt: string): Promise<{
  */
 export async function executeZkLoginTransaction(
     transaction: Transaction
-): Promise<{ digest: string; effects: any }> {
+): Promise<{ digest: string; effects: any; objectChanges?: any; events?: any }> {
     // 1. Retrieve all required data
     const session = getStoredSession();
     const jwt = window.sessionStorage.getItem("sui_zklogin_jwt");
@@ -403,6 +403,8 @@ export async function executeZkLoginTransaction(
     return {
         digest: result.digest,
         effects: result.effects,
+        objectChanges: result.objectChanges,
+        events: result.events,
     };
 }
 

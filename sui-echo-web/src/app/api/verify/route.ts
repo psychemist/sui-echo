@@ -1,27 +1,21 @@
 /**
- * TEE Verification API Route
+ * TEE Verification API Route - Option C (Attestation)
  * POST /api/verify
  * 
- * Nautilus TEE Verification Flow:
+ * Flow:
  * 1. Receives Blob ID and Handout Object ID
  * 2. Fetches content from Walrus
  * 3. Performs content verification
- * 4. Signs and submits verification transaction to Sui
+ * 4. Returns Ed25519 signature for user to submit to contract
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { SuiClient, getFullnodeUrl } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { Transaction } from '@mysten/sui/transactions';
 import crypto from 'crypto';
 
 // Configuration
-const SUI_NETWORK = (process.env.SUI_NETWORK || 'testnet') as 'testnet' | 'mainnet' | 'devnet';
 const WALRUS_AGGREGATOR = process.env.WALRUS_AGGREGATOR || 'https://aggregator.walrus-testnet.walrus.space';
-const PACKAGE_ID = process.env.PACKAGE_ID || process.env.NEXT_PUBLIC_PACKAGE_ID || '';
 const ADMIN_SECRET_KEY = process.env.ADMIN_SECRET_KEY || '';
-
-const client = new SuiClient({ url: getFullnodeUrl(SUI_NETWORK) });
 
 // CORS headers
 const corsHeaders = {
@@ -104,13 +98,13 @@ export async function POST(request: NextRequest) {
 
         console.log('[TEE] Content verified successfully', { contentHash });
 
-        // Step 3: On-chain attestation
+        // Step 3: Generate attestation (signature) - NO TRANSACTION!
         if (!ADMIN_SECRET_KEY) {
-            console.warn('[TEE] Admin key not configured, skipping on-chain verification');
+            console.warn('[TEE] Admin key not configured');
             return NextResponse.json(
                 {
                     status: 'verified_locally',
-                    message: 'Content verified successfully. On-chain attestation skipped (TEE key not configured).',
+                    message: 'Content verified but TEE key not configured for attestation.',
                     contentHash,
                     verificationResults,
                 },
@@ -118,68 +112,38 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        if (!PACKAGE_ID || PACKAGE_ID === '0x...') {
-            console.warn('[TEE] Package ID not configured, skipping on-chain verification');
-            return NextResponse.json(
-                {
-                    status: 'verified_locally',
-                    message: 'Content verified successfully. On-chain attestation skipped (Package ID not configured).',
-                    contentHash,
-                    verificationResults,
-                },
-                { headers: corsHeaders }
-            );
-        }
-
-        // Step 4: Sign and submit verification transaction
+        // Create keypair from secret
         const keypair = Ed25519Keypair.fromSecretKey(ADMIN_SECRET_KEY);
-        const tx = new Transaction();
+        const publicKeyBytes = keypair.getPublicKey().toRawBytes();
 
-        tx.moveCall({
-            target: `${PACKAGE_ID}::echo::verify_handout`,
-            arguments: [tx.object(sanitizedHandoutId)],
+        // Create message: handoutId (hex bytes) + blobId (utf8 bytes)
+        // Remove 0x prefix from handout ID and convert to bytes
+        const handoutIdHex = sanitizedHandoutId.replace('0x', '');
+        const handoutIdBytes = Buffer.from(handoutIdHex, 'hex');
+        const blobIdBytes = Buffer.from(sanitizedBlobId, 'utf8');
+        const message = Buffer.concat([handoutIdBytes, blobIdBytes]);
+
+        // Sign the message with Ed25519
+        const signature = await keypair.sign(message);
+
+        console.log('[TEE] Attestation generated', {
+            publicKey: Buffer.from(publicKeyBytes).toString('hex'),
+            messageLength: message.length,
+            signatureLength: signature.length,
         });
-
-        const result = await client.signAndExecuteTransaction({
-            transaction: tx,
-            signer: keypair,
-            options: {
-                showEffects: true,
-                showEvents: true,
-            },
-        });
-
-        console.log('[TEE] Verification transaction submitted', {
-            digest: result.digest,
-            status: result.effects?.status?.status,
-        });
-
-        // Check transaction status
-        if (result.effects?.status?.status !== 'success') {
-            console.error('[TEE] Verification transaction failed', {
-                digest: result.digest,
-                error: result.effects?.status?.error,
-            });
-            return NextResponse.json(
-                {
-                    status: 'transaction_failed',
-                    error: result.effects?.status?.error || 'Transaction execution failed',
-                    digest: result.digest,
-                },
-                { status: 500, headers: corsHeaders }
-            );
-        }
 
         return NextResponse.json(
             {
-                status: 'verified_onchain',
-                digest: result.digest,
+                status: 'attestation_ready',
                 contentHash,
                 verificationResults,
                 attestation: {
-                    type: 'SUI_ECHO_TEE_VERIFICATION_V1',
+                    signature: Array.from(signature), // Convert Uint8Array to array for JSON
+                    publicKey: Array.from(publicKeyBytes),
+                    message: Array.from(message),
+                    handoutId: sanitizedHandoutId,
+                    blobId: sanitizedBlobId,
                     timestamp: new Date().toISOString(),
-                    verifier: keypair.getPublicKey().toSuiAddress(),
                 },
             },
             { headers: corsHeaders }
