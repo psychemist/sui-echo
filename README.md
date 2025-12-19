@@ -8,11 +8,11 @@
 - [Architecture Overview](#architecture-overview)
 - [Sui Technology Stack](#sui-technology-stack)
 - [Key Features](#key-features)
+- [Security & Privacy](#security--privacy)
 - [Project Structure](#project-structure)
 - [Setup & Installation](#setup--installation)
 - [Usage Guide](#usage-guide)
 - [Development](#development)
-- [Security & Privacy](#security--privacy)
 - [Future Roadmap](#future-roadmap)
 
 ## Introduction
@@ -418,6 +418,50 @@ sequenceDiagram
 
 **Files**: `src/components/Sidebar.tsx`, `sui-echo-move/sources/echo.move`
 
+### 8. Voice Navigation
+
+- ARIA labels for easy navigation by screen readers
+- Voice commands for reading handouts
+- Voice navigation to course rep broadcasts
+- Voice navigation to admin panel
+
+**Files**: `src/app/reader/page.tsx`, `src/app/dashboard/broadcasts/page.tsx`, `src/app/dashboard/admin/page.tsx`
+
+## Security & Privacy
+
+### zkLogin Privacy Benefits
+
+- **No Personal Data On-Chain**: Only zkLogin address is stored, not email or name
+- **Zero-Knowledge Proofs**: Identity verified without revealing credentials
+- **Deterministic Addresses**: Same Google account always generates same Sui address
+- **Session-Based**: JWT tokens stored in browser, not persisted
+
+### TEE Verification
+
+- **Hardware Security**: Verification runs in isolated execution environment
+- **Cryptographic Proofs**: Ed25519 signatures ensure content integrity
+- **Tamper-Resistant**: Content cannot be modified after verification
+- **Transparent**: Verification signatures are on-chain and auditable
+
+### On-Chain vs Off-Chain Data
+
+**On-Chain** (Sui Objects):
+- Handout metadata (blob ID, description, verification status)
+- Broadcast information (course code, message, audio blob ID)
+- Course rep capabilities
+- Reward pool balances
+- Event logs
+
+**Off-Chain** (Walrus):
+- Actual content (scanned text, audio files)
+- Large files that would be expensive on-chain
+
+**Benefits**:
+- Cost efficiency (only metadata on-chain)
+- Scalability (unlimited content size)
+- Privacy (content not publicly visible on-chain)
+- Performance (faster retrieval)
+
 ## Project Structure
 
 ```
@@ -664,41 +708,6 @@ NEXT_PUBLIC_ZK_PROVER_URL=https://prover-dev.mystenlabs.com/v1
 - Follow React best practices
 - Use Sui SDK patterns
 
-## Security & Privacy
-
-### zkLogin Privacy Benefits
-
-- **No Personal Data On-Chain**: Only zkLogin address is stored, not email or name
-- **Zero-Knowledge Proofs**: Identity verified without revealing credentials
-- **Deterministic Addresses**: Same Google account always generates same Sui address
-- **Session-Based**: JWT tokens stored in browser, not persisted
-
-### TEE Verification
-
-- **Hardware Security**: Verification runs in isolated execution environment
-- **Cryptographic Proofs**: Ed25519 signatures ensure content integrity
-- **Tamper-Resistant**: Content cannot be modified after verification
-- **Transparent**: Verification signatures are on-chain and auditable
-
-### On-Chain vs Off-Chain Data
-
-**On-Chain** (Sui Objects):
-- Handout metadata (blob ID, description, verification status)
-- Broadcast information (course code, message, audio blob ID)
-- Course rep capabilities
-- Reward pool balances
-- Event logs
-
-**Off-Chain** (Walrus):
-- Actual content (scanned text, audio files)
-- Large files that would be expensive on-chain
-
-**Benefits**:
-- Cost efficiency (only metadata on-chain)
-- Scalability (unlimited content size)
-- Privacy (content not publicly visible on-chain)
-- Performance (faster retrieval)
-
 ## Future Roadmap
 
 ### Planned Enhancements
@@ -721,13 +730,7 @@ NEXT_PUBLIC_ZK_PROVER_URL=https://prover-dev.mystenlabs.com/v1
 
 ## License
 
-[Specify your license here]
-
-## Contact & Support
-
-- **Issues**: [GitHub Issues URL]
-- **Documentation**: [Documentation URL]
-- **Community**: [Discord/Telegram URL]
+MIT
 
 ---
 
