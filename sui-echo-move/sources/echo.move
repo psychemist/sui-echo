@@ -1,4 +1,4 @@
-/// Sui-Echo Smart Contract - Production Version
+/// Sui-Echo Smart Contract
 /// 
 /// This module provides the core functionality for the Sui-Echo platform:
 /// - Handout minting and verification
@@ -14,6 +14,7 @@ module sui_echo::echo {
     use sui::balance::{Self, Balance};
     use sui::table::{Self, Table};
     use sui::event;
+    use sui::dynamic_field;
 
     // ========== Error Codes ==========
     const ENotAuthorized: u64 = 0;
@@ -225,7 +226,11 @@ module sui_echo::echo {
             created_at: timestamp,
         };
 
+        // Store in pending_applications table
         table::add(&mut registry.pending_applications, sender, true);
+        
+        // Store application as dynamic field on registry (keyed by applicant address)
+        dynamic_field::add(&mut registry.id, sender, application);
 
         event::emit(CourseRepApplicationSubmitted {
             application_id: id,
@@ -233,24 +238,27 @@ module sui_echo::echo {
             course_code: code_str,
             timestamp,
         });
-
-        transfer::transfer(application, sender);
     }
 
+    /// Admin approves a course rep application by applicant address
     public fun approve_course_rep(
         _admin: &AdminCap,
         registry: &mut CourseRepRegistry,
-        application: CourseRepApplication,
+        applicant: address,
         ctx: &mut TxContext
     ) {
-        let CourseRepApplication { id, applicant, course_code, full_name: _, student_id: _, department: _, reason: _, created_at: _ } = application;
+        // Get and remove application from dynamic field
+        assert!(dynamic_field::exists_(&registry.id, applicant), ENotAuthorized);
+        let application: CourseRepApplication = dynamic_field::remove(&mut registry.id, applicant);
+        
+        let CourseRepApplication { id, applicant: app_addr, course_code, full_name: _, student_id: _, department: _, reason: _, created_at: _ } = application;
 
-        if (table::contains(&registry.pending_applications, applicant)) {
-            table::remove(&mut registry.pending_applications, applicant);
+        if (table::contains(&registry.pending_applications, app_addr)) {
+            table::remove(&mut registry.pending_applications, app_addr);
         };
 
-        if (!table::contains(&registry.verified_reps, applicant)) {
-            table::add(&mut registry.verified_reps, applicant, course_code);
+        if (!table::contains(&registry.verified_reps, app_addr)) {
+            table::add(&mut registry.verified_reps, app_addr, course_code);
         };
 
         let rep_cap_uid = object::new(ctx);
@@ -260,38 +268,42 @@ module sui_echo::echo {
         let rep_cap = CourseRepCap {
             id: rep_cap_uid,
             course_code,
-            rep_address: applicant,
+            rep_address: app_addr,
             verified_by: approver,
             verified_at: tx_context::epoch_timestamp_ms(ctx),
         };
 
         event::emit(CourseRepApproved {
             rep_id,
-            applicant,
+            applicant: app_addr,
             course_code,
             approved_by: approver,
         });
 
-        transfer::transfer(rep_cap, applicant);
+        transfer::transfer(rep_cap, app_addr);
         object::delete(id);
     }
 
+    /// Admin rejects a course rep application by applicant address
     public fun reject_course_rep(
         _admin: &AdminCap,
         registry: &mut CourseRepRegistry,
-        application: CourseRepApplication,
+        applicant: address,
         rejection_reason: vector<u8>,
         ctx: &mut TxContext
     ) {
-        let CourseRepApplication { id, applicant, course_code: _, full_name: _, student_id: _, department: _, reason: _, created_at: _ } = application;
+        assert!(dynamic_field::exists_(&registry.id, applicant), ENotAuthorized);
+        let application: CourseRepApplication = dynamic_field::remove(&mut registry.id, applicant);
+        
+        let CourseRepApplication { id, applicant: app_addr, course_code: _, full_name: _, student_id: _, department: _, reason: _, created_at: _ } = application;
 
-        if (table::contains(&registry.pending_applications, applicant)) {
-            table::remove(&mut registry.pending_applications, applicant);
+        if (table::contains(&registry.pending_applications, app_addr)) {
+            table::remove(&mut registry.pending_applications, app_addr);
         };
 
         event::emit(CourseRepRejected {
             application_id: object::uid_to_inner(&id),
-            applicant,
+            applicant: app_addr,
             rejected_by: tx_context::sender(ctx),
             reason: string::utf8(rejection_reason),
         });
