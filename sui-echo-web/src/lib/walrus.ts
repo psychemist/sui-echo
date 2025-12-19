@@ -1,61 +1,68 @@
 /**
  * Walrus Storage Utilities
- * For uploading and retrieving content from Walrus
+ * Uses Walrus HTTP publisher/aggregator APIs for uploading and retrieving content
  */
 
 import { WALRUS_AGGREGATOR, WALRUS_PUBLISHER } from "@/config";
 
-export type WalrusUploadResponse = {
-  newlyCreated?: {
-    blobObject: {
-      blobId: string;
-      storedEpoch: number;
-      endEpoch: number;
-    };
-  };
-  alreadyCertified?: {
-    blobId: string;
-    endEpoch: number;
-  };
-};
-
 /**
- * Uploads a file (Blob/Buffer) to Walrus
+ * Uploads a file (Blob/Buffer) to Walrus using the HTTP publisher API
  * @param file - The file or blob to upload
  * @returns The blob ID for retrieval
  */
 export async function uploadToWalrus(file: Blob | File): Promise<string> {
-  const response = await fetch(`${WALRUS_PUBLISHER}/v1/store`, {
-    method: "PUT",
-    body: file,
-  });
+  try {
+    // Get filename if available
+    const filename = file instanceof File ? file.name : "upload.bin";
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to upload to Walrus: ${response.status} - ${errorText}`);
+    console.log("[Walrus] Uploading via HTTP publisher...", {
+      size: file.size,
+      filename,
+    });
+
+    // Upload using the HTTP publisher API
+    // epochs=5 means store for 5 epochs
+    const response = await fetch(`${WALRUS_PUBLISHER}/v1/blobs?epochs=5`, {
+      method: "PUT",
+      body: file,
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Publisher returned ${response.status}: ${errorText}`);
+    }
+
+    const result = await response.json();
+
+    // The response can be either "newlyCreated" or "alreadyCertified"
+    let blobId: string;
+    if (result.newlyCreated) {
+      blobId = result.newlyCreated.blobObject.blobId;
+    } else if (result.alreadyCertified) {
+      blobId = result.alreadyCertified.blobId;
+    } else {
+      console.error("[Walrus] Unexpected response:", result);
+      throw new Error("Unexpected response from Walrus publisher");
+    }
+
+    console.log("[Walrus] Upload successful:", blobId);
+    return blobId;
+  } catch (error: any) {
+    console.error("[Walrus] Upload failed:", error);
+    throw new Error(`Walrus upload failed: ${error.message}`);
   }
-
-  const data: WalrusUploadResponse = await response.json();
-
-  // Handle different response formats
-  if (data.newlyCreated?.blobObject?.blobId) {
-    return data.newlyCreated.blobObject.blobId;
-  }
-  if (data.alreadyCertified?.blobId) {
-    return data.alreadyCertified.blobId;
-  }
-
-  console.error("[Walrus] Unexpected response:", data);
-  throw new Error("Invalid response from Walrus Publisher");
 }
 
 /**
- * Constructs the URL to read a blob from Walrus
+ * Constructs the URL to read a blob from Walrus aggregator
  * @param blobId - The blob ID to retrieve
  * @returns The full URL to fetch the blob
  */
 export function getWalrusUrl(blobId: string): string {
-  return `${WALRUS_AGGREGATOR}/v1/${blobId}`;
+  return `${WALRUS_AGGREGATOR}/v1/blobs/${blobId}`;
 }
 
 /**
@@ -74,5 +81,19 @@ export async function fetchFromWalrus(blobId: string): Promise<string> {
   return await response.text();
 }
 
-// Re-export config for convenience
-export { WALRUS_AGGREGATOR, WALRUS_PUBLISHER };
+/**
+ * Fetches binary content from Walrus
+ * @param blobId - The blob ID to fetch
+ * @returns The blob content as Uint8Array
+ */
+export async function fetchBinaryFromWalrus(blobId: string): Promise<Uint8Array> {
+  const url = getWalrusUrl(blobId);
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch from Walrus: ${response.status}`);
+  }
+
+  const buffer = await response.arrayBuffer();
+  return new Uint8Array(buffer);
+}

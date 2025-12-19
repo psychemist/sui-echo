@@ -34,15 +34,15 @@ export const SUI_RPC_URLS = {
 
 export const SUI_RPC_URL = SUI_RPC_URLS[SUI_NETWORK];
 
-// Walrus Configuration
+// Walrus HTTP endpoints
 export const WALRUS_CONFIG = {
     testnet: {
-        aggregator: 'https://aggregator.walrus-testnet.walrus.space',
-        publisher: 'https://publisher.walrus-testnet.walrus.space',
+        publisher: "https://publisher.walrus-testnet.walrus.space",
+        aggregator: "https://aggregator.walrus-testnet.walrus.space",
     },
     mainnet: {
-        aggregator: 'https://aggregator.walrus.walrus.space',
-        publisher: 'https://publisher.walrus.walrus.space',
+        publisher: "https://publisher.walrus.walrus.space",
+        aggregator: "https://aggregator.walrus.walrus.space",
     },
 };
 
