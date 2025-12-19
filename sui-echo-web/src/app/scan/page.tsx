@@ -9,7 +9,7 @@ import { ConnectButton, useCurrentAccount, useSignAndExecuteTransaction } from "
 import { Transaction } from "@mysten/sui/transactions";
 import { Volume2, FileText, ArrowRight, X, Loader2, CheckCircle2, User, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import { isZkLoginSessionValid, getZkLoginAddress, executeZkLoginTransaction } from "@/utils/zklogin-proof";
+import { isZkLoginSessionValid, getZkLoginAddress, executeSponsoredZkLoginTransaction } from "@/utils/zklogin-proof";
 
 // Attestation data from TEE
 interface Attestation {
@@ -119,8 +119,8 @@ export default function ScanPage() {
             });
 
             if (isZkLogin) {
-                console.log("[Scan] Submitting attestation with zkLogin...");
-                const result = await executeZkLoginTransaction(tx);
+                console.log("[Scan] Submitting attestation with zkLogin (sponsored)...");
+                const result = await executeSponsoredZkLoginTransaction(tx);
                 console.log("[Scan] Verification complete:", result.digest);
                 setTeeStatus("verified");
             } else {
@@ -193,8 +193,8 @@ export default function ScanPage() {
 
             // 3. Execute based on auth method
             if (isZkLogin) {
-                console.log("[Scan] Executing with zkLogin...");
-                const result = await executeZkLoginTransaction(tx);
+                console.log("[Scan] Executing with zkLogin (sponsored)...");
+                const result = await executeSponsoredZkLoginTransaction(tx);
                 setTxDigest(result.digest);
                 console.log("[Scan] Minted on-chain (zkLogin):", result.digest);
 

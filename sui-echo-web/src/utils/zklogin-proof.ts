@@ -445,3 +445,104 @@ export function clearZkLoginSession(): void {
     window.sessionStorage.removeItem("sui_zklogin_user_salt");
     window.sessionStorage.removeItem("sui_zklogin_address");
 }
+
+/**
+ * Execute a SPONSORED transaction with zkLogin
+ * Uses the /api/sponsor endpoint which has the private Enoki API key
+ * User doesn't need SUI for gas - Enoki pays!
+ */
+export async function executeSponsoredZkLoginTransaction(
+    transaction: Transaction
+): Promise<{ digest: string; effects: any; objectChanges?: any; events?: any }> {
+    // 1. Retrieve all required data
+    const session = getStoredSession();
+    const jwt = window.sessionStorage.getItem("sui_zklogin_jwt");
+    const proofStr = window.sessionStorage.getItem("sui_zklogin_proof");
+    const userSalt = window.sessionStorage.getItem("sui_zklogin_user_salt");
+    const zkLoginAddress = window.sessionStorage.getItem("sui_zklogin_address");
+
+    if (!session || !jwt || !proofStr || !userSalt || !zkLoginAddress) {
+        throw new Error("Incomplete zkLogin session. Please login again.");
+    }
+
+    const zkProof: ZkProof = JSON.parse(proofStr);
+    const decodedJwt = jwtDecode<DecodedJwt>(jwt);
+
+    // 2. Reconstruct ephemeral key pair
+    const ephemeralKeyPair = Ed25519Keypair.fromSecretKey(session.ephemeralSecretKey);
+
+    // 3. Set transaction sender
+    transaction.setSender(zkLoginAddress);
+
+    // 4. Build the transaction KIND only (for sponsorship)
+    const client = getSuiClient();
+    const txKindBytes = await transaction.build({ client, onlyTransactionKind: true });
+
+    // 5. Call the sponsor API to get sponsored transaction
+    console.log("[zkLogin] Requesting sponsored transaction...");
+    const sponsorResponse = await fetch("/api/sponsor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            transactionBytes: Buffer.from(txKindBytes).toString("base64"),
+            sender: zkLoginAddress,
+        }),
+    });
+
+    if (!sponsorResponse.ok) {
+        const errorData = await sponsorResponse.json();
+        throw new Error(errorData.error || "Failed to sponsor transaction");
+    }
+
+    const { bytes: sponsoredBytes, digest: sponsorDigest } = await sponsorResponse.json();
+    console.log("[zkLogin] Transaction sponsored, digest:", sponsorDigest);
+
+    // 6. Sign the sponsored transaction with ephemeral key
+    const sponsoredTxBytes = Buffer.from(sponsoredBytes, "base64");
+    const { signature: userSignature } = await ephemeralKeyPair.signTransaction(sponsoredTxBytes);
+
+    // 7. Generate address seed
+    const addressSeed = genAddressSeed(
+        BigInt(userSalt),
+        ZKLOGIN_CONFIG.KEY_CLAIM_NAME,
+        decodedJwt.sub,
+        decodedJwt.aud as string
+    ).toString();
+
+    // 8. Assemble the zkLogin signature
+    const zkLoginSignature = getZkLoginSignature({
+        inputs: {
+            ...zkProof,
+            addressSeed,
+        },
+        maxEpoch: session.maxEpoch,
+        userSignature,
+    });
+
+    // 9. Execute via Enoki (they add sponsor signature and submit)
+    console.log("[zkLogin] Executing sponsored transaction via Enoki...");
+
+    const executeResponse = await fetch("/api/sponsor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            digest: sponsorDigest,
+            signature: zkLoginSignature,
+        }),
+    });
+
+    if (!executeResponse.ok) {
+        const errorData = await executeResponse.json();
+        throw new Error(errorData.error || "Failed to execute sponsored transaction");
+    }
+
+    const executeResult = await executeResponse.json();
+    console.log("[zkLogin] Sponsored transaction executed:", executeResult.digest);
+
+    return {
+        digest: executeResult.digest,
+        effects: null,
+        objectChanges: null,
+        events: null,
+    };
+}

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import { Radio, ShieldCheck, Users, Link as IconLink, Upload, Loader2, RefreshCw, Play } from "lucide-react";
-import { getSuiClient, getZkLoginAddress, isZkLoginSessionValid, executeZkLoginTransaction } from "@/utils/zklogin-proof";
+import { getSuiClient, getZkLoginAddress, isZkLoginSessionValid, executeSponsoredZkLoginTransaction } from "@/utils/zklogin-proof";
 import { uploadToWalrus, getWalrusUrl } from "@/lib/walrus";
 import { TARGETS, isContractConfigured } from "@/lib/contract";
 import { SUI_NETWORK } from "@/config";
@@ -116,8 +116,8 @@ export default function BroadcastsPage() {
                 ],
             });
 
-            const result = await executeZkLoginTransaction(tx);
-            console.log("[Broadcasts] Transaction result:", result);
+            const result = await executeSponsoredZkLoginTransaction(tx);
+            console.log("[Broadcasts] Transaction result (sponsored):", result);
 
             // Success!
             alert(`Broadcast Created Successfully!\n\nCourse: ${courseCode}\nTx: ${result.digest}`);
