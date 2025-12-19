@@ -2,17 +2,25 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Activity, Radio, ShieldCheck, LogOut, CheckCircle, User } from "lucide-react";
+import { Activity, Radio, ShieldCheck, LogOut, CheckCircle, User, Copy, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { jwtDecode } from "jwt-decode";
+import { clearZkLoginSession, getZkLoginAddress, isZkLoginSessionValid } from "@/utils/zklogin-proof";
 
 export default function Sidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const [userEmail, setUserEmail] = useState<string | null>(null);
+    const [zkAddress, setZkAddress] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
-        const token = window.sessionStorage.getItem("sui_zklogin_id_token");
+        // Get zkLogin address
+        const address = getZkLoginAddress();
+        setZkAddress(address);
+
+        // Get email from JWT
+        const token = window.sessionStorage.getItem("sui_zklogin_jwt");
         if (token) {
             try {
                 const decoded: any = jwtDecode(token);
@@ -21,11 +29,24 @@ export default function Sidebar() {
                 console.error("Failed to decode token", e);
             }
         }
-    }, []);
+
+        // Redirect if not logged in
+        if (!isZkLoginSessionValid()) {
+            router.push("/");
+        }
+    }, [router]);
 
     const handleLogout = () => {
-        window.sessionStorage.clear();
+        clearZkLoginSession();
         router.push("/");
+    };
+
+    const handleCopyAddress = () => {
+        if (zkAddress) {
+            navigator.clipboard.writeText(zkAddress);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
     };
 
     const navItems = [
@@ -56,8 +77,8 @@ export default function Sidebar() {
                             key={item.name}
                             href={item.href}
                             className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${isActive
-                                    ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
-                                    : "text-gray-400 hover:text-white hover:bg-white/5"
+                                ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
+                                : "text-gray-400 hover:text-white hover:bg-white/5"
                                 }`}
                         >
                             <item.icon size={20} className={isActive ? "text-white" : "text-gray-400 group-hover:text-blue-400"} />
