@@ -22,6 +22,9 @@ export const TEE_WORKER_URL = process.env.NEXT_PUBLIC_TEE_WORKER_URL || 'http://
 // ZK Prover Service URL
 export const ZK_PROVER_URL = process.env.NEXT_PUBLIC_ZK_PROVER_URL || 'https://prover-dev.mystenlabs.com/v1';
 
+// Enoki API Key (for production salt management)
+export const ENOKI_API_KEY = process.env.NEXT_PUBLIC_ENOKI_API_KEY || '';
+
 // Sui RPC URLs
 export const SUI_RPC_URLS = {
     testnet: 'https://fullnode.testnet.sui.io:443',

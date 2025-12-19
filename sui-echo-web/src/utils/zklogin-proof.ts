@@ -74,28 +74,56 @@ export async function getCurrentEpoch(): Promise<number> {
 }
 
 /**
- * Generate a user salt from email/sub
- * IMPORTANT: Salt must be DETERMINISTIC - same sub = same salt = same address
- * In production, use a backend service like Mysten's salt server (Enoki)
+ * Get salt and address from Enoki API
+ * This ensures consistent, production-grade salt management
  */
-export function generateUserSalt(sub: string): string {
-    // Production recommendation: Use Mysten Labs salt server via Enoki
-    // For this implementation, we use a deterministic derivation
-    // WARNING: This is simplified - production should use HKDF with a master seed
+export async function getEnokiSaltAndAddress(jwt: string): Promise<{ salt: string; address: string }> {
+    const ENOKI_API_KEY = process.env.NEXT_PUBLIC_ENOKI_API_KEY;
 
+    if (!ENOKI_API_KEY) {
+        console.warn("[zkLogin] ENOKI_API_KEY not set, falling back to local salt");
+        // Fallback to local deterministic salt
+        const decodedJwt = jwtDecode<{ sub: string }>(jwt);
+        const salt = generateLocalSalt(decodedJwt.sub);
+        const address = jwtToAddress(jwt, salt);
+        return { salt, address };
+    }
+
+    const response = await fetch("https://api.enoki.mystenlabs.com/v1/zklogin", {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${ENOKI_API_KEY}`,
+            "zklogin-jwt": jwt,
+        },
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[zkLogin] Enoki salt API error:", errorText);
+        throw new Error(`Enoki salt API failed: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log("[zkLogin] Got salt and address from Enoki");
+    return {
+        salt: result.data.salt,
+        address: result.data.address,
+    };
+}
+
+/**
+ * Fallback local salt generation (used when Enoki API key not available)
+ */
+function generateLocalSalt(sub: string): string {
     const encoder = new TextEncoder();
     const data = encoder.encode(sub + "_sui_echo_salt_v1_stable");
 
-    // Create a deterministic hash
-    let hash = 5381; // djb2 hash
+    let hash = 5381;
     for (let i = 0; i < data.length; i++) {
         hash = ((hash << 5) + hash) ^ data[i];
     }
 
-    // Ensure positive and large enough value
-    const positiveHash = Math.abs(hash) >>> 0; // Convert to unsigned 32-bit
-
-    // Create a larger salt by combining multiple hash iterations
+    const positiveHash = Math.abs(hash) >>> 0;
     let salt = BigInt(positiveHash);
     for (let i = 0; i < 3; i++) {
         let iterHash = 5381;
@@ -107,6 +135,13 @@ export function generateUserSalt(sub: string): string {
     }
 
     return salt.toString();
+}
+
+/**
+ * Generate user salt - wrapper for backwards compatibility
+ */
+export function generateUserSalt(sub: string): string {
+    return generateLocalSalt(sub);
 }
 
 /**
@@ -215,7 +250,7 @@ export async function generateZkProof(
 
 /**
  * Complete zkLogin callback - Called after OAuth redirect
- * Generates the ZK proof and derives the zkLogin address
+ * Uses Enoki API for salt and ZK proof generation
  */
 export async function completeZkLoginCallback(jwt: string): Promise<{
     zkLoginAddress: string;
@@ -240,37 +275,65 @@ export async function completeZkLoginCallback(jwt: string): Promise<{
         throw new Error("JWT has expired. Please login again.");
     }
 
-    // 4. Generate or retrieve user salt
-    // In production, you'd want to store this persistently per user
-    let userSalt = window.sessionStorage.getItem("sui_zklogin_user_salt");
-    if (!userSalt) {
-        userSalt = generateUserSalt(decodedJwt.sub);
-        window.sessionStorage.setItem("sui_zklogin_user_salt", userSalt);
-    }
+    // 4. Get salt and address from Enoki (or fallback)
+    console.log("[zkLogin] Getting salt from Enoki...");
+    const { salt: userSalt, address: enokiAddress } = await getEnokiSaltAndAddress(jwt);
+    console.log("[zkLogin] Got salt, address:", enokiAddress);
 
     // 5. Reconstruct ephemeral key pair
     const ephemeralKeyPair = Ed25519Keypair.fromSecretKey(session.ephemeralSecretKey);
     const extendedEphemeralPublicKey = getExtendedEphemeralPublicKey(ephemeralKeyPair.getPublicKey());
 
-    // 6. Generate ZK proof
-    console.log("[zkLogin] Generating ZK proof...");
-    const zkProof = await generateZkProof(
-        jwt,
-        extendedEphemeralPublicKey,
-        session.maxEpoch,
-        session.randomness,
-        userSalt
-    );
+    // 6. Try Enoki ZKP API first, fall back to prover service
+    let zkProof: ZkProof;
+    const ENOKI_API_KEY = process.env.NEXT_PUBLIC_ENOKI_API_KEY;
+
+    if (ENOKI_API_KEY) {
+        console.log("[zkLogin] Generating ZK proof via Enoki...");
+        try {
+            const response = await fetch("https://api.enoki.mystenlabs.com/v1/zklogin/zkp", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${ENOKI_API_KEY}`,
+                    "zklogin-jwt": jwt,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    network: "testnet",
+                    ephemeralPublicKey: extendedEphemeralPublicKey,
+                    maxEpoch: session.maxEpoch,
+                    randomness: session.randomness,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error("[zkLogin] Enoki ZKP error:", errorText);
+                throw new Error(`Enoki ZKP failed: ${response.status}`);
+            }
+
+            const result = await response.json();
+            zkProof = result.data;
+            console.log("[zkLogin] ZK proof generated via Enoki");
+        } catch (enokiError) {
+            console.warn("[zkLogin] Enoki ZKP failed, falling back to prover:", enokiError);
+            zkProof = await generateZkProof(jwt, extendedEphemeralPublicKey, session.maxEpoch, session.randomness, userSalt);
+        }
+    } else {
+        console.log("[zkLogin] Generating ZK proof via prover service...");
+        zkProof = await generateZkProof(jwt, extendedEphemeralPublicKey, session.maxEpoch, session.randomness, userSalt);
+    }
     console.log("[zkLogin] ZK proof generated successfully");
 
-    // 7. Derive zkLogin address
-    const zkLoginAddress = jwtToAddress(jwt, userSalt);
+    // 7. Use Enoki address if available, otherwise derive locally
+    const zkLoginAddress = enokiAddress || jwtToAddress(jwt, userSalt);
     console.log("[zkLogin] Derived address:", zkLoginAddress);
 
     // 8. Store proof and address for later use
     window.sessionStorage.setItem("sui_zklogin_jwt", jwt);
     window.sessionStorage.setItem("sui_zklogin_proof", JSON.stringify(zkProof));
     window.sessionStorage.setItem("sui_zklogin_address", zkLoginAddress);
+    window.sessionStorage.setItem("sui_zklogin_user_salt", userSalt);
 
     return { zkLoginAddress, zkProof, userSalt };
 }
