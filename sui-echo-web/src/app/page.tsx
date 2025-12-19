@@ -17,6 +17,9 @@ export default function Home() {
     setIsRedirecting(true);
     setLoginError(null);
     try {
+      // Save the selected role before redirecting
+      window.sessionStorage.setItem("sui_echo_user_role", role);
+
       const { loginUrl } = await prepareZkLoginSession();
       window.location.href = loginUrl;
     } catch (e: any) {
@@ -25,6 +28,7 @@ export default function Home() {
       setLoginError(e.message || "Failed to initialize zkLogin. Please try again.");
     }
   };
+
 
   return (
     <div className="min-h-screen bg-[#020617] text-white font-sans selection:bg-blue-500/30 overflow-x-hidden relative flex flex-col">
